@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { supabase } from './lib/supabase'
-import './App.css'
+import './styles/App.css'
 
 const apiUrl = process.env.REACT_APP_API_URL
 if (!apiUrl) {
