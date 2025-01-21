@@ -13,4 +13,5 @@ function AuthWrapper({ children }: AuthWrapperProps) {
   return <>{children}</>
 }
 
-export default withAuthenticator(AuthWrapper) 
+// Only wrap with authentication in production
+export default awsconfig.isProduction ? withAuthenticator(AuthWrapper) : AuthWrapper 
