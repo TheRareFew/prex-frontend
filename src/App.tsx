@@ -2,9 +2,15 @@ import React, { useState } from 'react'
 import { supabase } from './lib/supabase'
 import './App.css'
 
+const apiUrl = process.env.REACT_APP_API_URL
+if (!apiUrl) {
+  throw new Error('API URL not configured')
+}
+
 function App() {
   const [value, setValue] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [aiResponse, setAiResponse] = useState<string | null>(null)
 
   const fetchValue = async () => {
     try {
@@ -26,10 +32,25 @@ function App() {
 
   const callAIEndpoint = async () => {
     try {
-      // Temporarily disable AI call until configured
-      console.log('AI endpoint called')
+      const response = await fetch(`${apiUrl}/predict`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ query: value || 'No value available' }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`API call failed: ${response.statusText}`)
+      }
+
+      const data = await response.json()
+      setAiResponse(data.response)
+      setError(null)
     } catch (error) {
       console.error('Error:', error)
+      setError(error instanceof Error ? error.message : 'An error occurred')
+      setAiResponse(null)
     }
   }
 
@@ -43,6 +64,7 @@ function App() {
           </div>
           {error && <p style={{ color: 'red' }}>{error}</p>}
           {value && <p>Value: {value}</p>}
+          {aiResponse && <p>AI Response: {aiResponse}</p>}
         </div>
       </header>
     </div>
