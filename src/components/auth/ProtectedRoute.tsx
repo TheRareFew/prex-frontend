@@ -1,37 +1,33 @@
+import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { useUserRole } from '../../hooks/useUserRole';
+
+type UserRole = 'super_admin' | 'admin' | 'manager' | 'agent' | 'employee' | 'customer';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  requiredRole?: 'super_admin' | 'admin' | 'manager' | 'agent' | 'customer';
+  requiredRole?: UserRole | UserRole[];
 }
 
-export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
-  const { user } = useAuth();
-  const { role, loading, isManager } = useUserRole();
+export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole }) => {
+  const { user, userRole, loading } = useAuth();
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-      </div>
-    );
+    return <div>Loading...</div>;
   }
 
   if (!user) {
     return <Navigate to="/signin" replace />;
   }
 
-  // Managers have access to all routes
-  if (isManager) {
-    return <>{children}</>;
-  }
+  if (requiredRole) {
+    const roles = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
+    const hasRequiredRole = roles.includes(userRole as UserRole);
 
-  // If a role is required, check if the user has it
-  if (requiredRole && role !== requiredRole) {
-    return <Navigate to="/unauthorized" replace />;
+    if (!hasRequiredRole) {
+      return <Navigate to="/dashboard/customer" replace />;
+    }
   }
 
   return <>{children}</>;
-} 
+}; 

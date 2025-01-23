@@ -6,7 +6,7 @@ import { useEmployees } from '../../hooks/useEmployees';
 import { useMessages } from '../../hooks/useMessages';
 import { TicketStatus, TicketPriority, TicketCategory } from '../../types/enums';
 
-export const ManagerDashboard: React.FC = () => {
+export const TicketManagement: React.FC = () => {
   const [selectedTicket, setSelectedTicket] = useState<string | null>(null);
   const [ticketName, setTicketName] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<TicketCategory | null>(null);

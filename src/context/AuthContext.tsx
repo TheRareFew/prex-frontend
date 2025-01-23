@@ -2,6 +2,8 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import { User, AuthError, Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 
+type UserRole = 'super_admin' | 'admin' | 'manager' | 'agent' | 'employee' | 'customer';
+
 interface AuthContextType {
   user: User | null;
   loading: boolean;
@@ -12,7 +14,7 @@ interface AuthContextType {
   resetPassword: (email: string) => Promise<void>;
   inviteUser: (email: string) => Promise<void>;
   isEmailVerified: boolean;
-  userRole: 'super_admin' | 'admin' | 'manager' | 'agent' | 'customer' | null;
+  userRole: UserRole | null;
   isManager: boolean;
 }
 

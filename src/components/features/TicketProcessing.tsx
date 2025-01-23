@@ -3,8 +3,10 @@ import { useTickets } from '../../hooks/useTickets';
 import { useMessages } from '../../hooks/useMessages';
 import { useAuth } from '../../context/AuthContext';
 import { TicketStatus, TicketPriority } from '../../types/enums';
+import { RichTextEditor } from '../common/RichTextEditor/RichTextEditor';
+import { RichTextDisplay } from '../common/RichTextDisplay/RichTextDisplay';
 
-export const EmployeeDashboard: React.FC = () => {
+export const TicketProcessing: React.FC = () => {
   const [selectedTicket, setSelectedTicket] = useState<string | null>(null);
   const [response, setResponse] = useState('');
   
@@ -138,13 +140,15 @@ export const EmployeeDashboard: React.FC = () => {
       {/* Response Editor Panel */}
       <div className="col-span-5 bg-white dark:bg-gray-800 p-4 rounded-lg shadow flex flex-col overflow-hidden">
         <h2 className="text-lg font-semibold mb-4 dark:text-white">Response Editor</h2>
-        <textarea
-          value={response}
-          onChange={(e) => setResponse(e.target.value)}
-          className="flex-1 w-full p-2 border rounded-md resize-none dark:bg-gray-700 dark:border-gray-600 dark:text-white mb-4"
-          placeholder="Type your response here..."
-          disabled={!selectedTicket}
-        />
+        <div className="flex-1 mb-4">
+          <RichTextEditor
+            value={response}
+            onChange={setResponse}
+            placeholder="Type your response here..."
+            disabled={!selectedTicket}
+            className="h-[calc(100%-2rem)]"
+          />
+        </div>
         <button
           onClick={handleSendResponse}
           disabled={!selectedTicket || !response.trim()}
@@ -167,7 +171,10 @@ export const EmployeeDashboard: React.FC = () => {
               {messages.map((message) => (
                 <div key={message.id} className="p-3 bg-gray-50 dark:bg-gray-700 rounded-md">
                   <div className="font-medium dark:text-white">User #{message.created_by.slice(0, 8)}</div>
-                  <div className="text-sm dark:text-gray-300">{message.message}</div>
+                  <RichTextDisplay
+                    content={message.message}
+                    className="text-sm dark:text-gray-300"
+                  />
                   <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                     {new Date(message.created_at).toLocaleString()}
                   </div>

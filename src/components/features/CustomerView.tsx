@@ -3,6 +3,8 @@ import { useTickets } from '../../hooks/useTickets';
 import { useMessages } from '../../hooks/useMessages';
 import { useAuth } from '../../context/AuthContext';
 import { TicketCategory, TicketStatus } from '../../types/enums';
+import { RichTextEditor } from '../common/RichTextEditor/RichTextEditor';
+import { RichTextDisplay } from '../common/RichTextDisplay/RichTextDisplay';
 
 interface CategoryOption {
   category: TicketCategory;
@@ -48,7 +50,7 @@ const CATEGORIES: CategoryOption[] = [
   },
 ];
 
-export const CustomerDashboard: React.FC = () => {
+export const CustomerView: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showChat, setShowChat] = useState(false);
   const [showCategorySelect, setShowCategorySelect] = useState(false);
@@ -133,39 +135,39 @@ export const CustomerDashboard: React.FC = () => {
     }
   }, [activeTicket, pendingMessage]);
 
-  const handleSendMessage = async (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && newMessage.trim()) {
-      const messageText = newMessage.trim();
-      
-      try {
-        // If we already have an active ticket, send message directly
-        if (activeTicket) {
-          const sent = await sendMessage(messageText);
-          if (sent) {
-            setNewMessage('');
-          }
-          return;
+  const handleSendMessage = async () => {
+    if (!newMessage.trim()) return;
+    
+    const messageText = newMessage.trim();
+    
+    try {
+      // If we already have an active ticket, send message directly
+      if (activeTicket) {
+        const sent = await sendMessage(messageText);
+        if (sent) {
+          setNewMessage('');
         }
-
-        // If no active ticket, we need a category selected first
-        if (!selectedCategory) {
-          console.error('No category selected for new ticket');
-          return;
-        }
-
-        // Create new ticket
-        const newTicket = await createTicket(selectedCategory);
-        if (!newTicket) {
-          throw new Error('Failed to create ticket');
-        }
-        
-        // Set the pending message and active ticket
-        // The useEffect will handle sending the message
-        setPendingMessage(messageText);
-        setActiveTicket(newTicket.id);
-      } catch (error) {
-        console.error('Error in message flow:', error);
+        return;
       }
+
+      // If no active ticket, we need a category selected first
+      if (!selectedCategory) {
+        console.error('No category selected for new ticket');
+        return;
+      }
+
+      // Create new ticket
+      const newTicket = await createTicket(selectedCategory);
+      if (!newTicket) {
+        throw new Error('Failed to create ticket');
+      }
+      
+      // Set the pending message and active ticket
+      // The useEffect will handle sending the message
+      setPendingMessage(messageText);
+      setActiveTicket(newTicket.id);
+    } catch (error) {
+      console.error('Error in message flow:', error);
     }
   };
 
@@ -254,40 +256,68 @@ export const CustomerDashboard: React.FC = () => {
               <div className="space-y-4">
                 {userTickets
                   .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
-                  .map((ticket) => (
-                  <div
-                    key={ticket.id}
-                    className={`p-4 border dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
-                      activeTicket === ticket.id ? 'border-blue-500 dark:border-blue-400' : ''
-                    }`}
-                    onClick={() => {
-                      setActiveTicket(ticket.id);
-                      setShowChat(true);
-                      setShowHistory(false);
-                    }}
-                  >
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <span className="font-medium dark:text-white">
-                          {CATEGORIES.find(c => c.category === ticket.category)?.label || ticket.category}
-                        </span>
-                        <div className="text-sm text-gray-500 dark:text-gray-400">
-                          Created: {new Date(ticket.created_at).toLocaleString()}
+                  .map((ticket) => {
+                    const ticketMessages = messages.filter(m => m.ticket_id === ticket.id);
+                    return (
+                      <div
+                        key={ticket.id}
+                        className={`p-4 border dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
+                          activeTicket === ticket.id ? 'border-blue-500 dark:border-blue-400' : ''
+                        }`}
+                        onClick={() => {
+                          setActiveTicket(ticket.id);
+                          setShowChat(true);
+                          setShowHistory(false);
+                        }}
+                      >
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <span className="font-medium dark:text-white">
+                              {CATEGORIES.find(c => c.category === ticket.category)?.label || ticket.category}
+                            </span>
+                            <div className="text-sm text-gray-500 dark:text-gray-400">
+                              Created: {new Date(ticket.created_at).toLocaleString()}
+                            </div>
+                            <div className="text-sm text-gray-500 dark:text-gray-400">
+                              Last updated: {new Date(ticket.updated_at).toLocaleString()}
+                            </div>
+                          </div>
+                          <span className={`px-2 py-1 text-xs rounded-full ${
+                            ticket.status === TicketStatus.CLOSED
+                              ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
+                              : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
+                          }`}>
+                            {ticket.status}
+                          </span>
                         </div>
-                        <div className="text-sm text-gray-500 dark:text-gray-400">
-                          Last updated: {new Date(ticket.updated_at).toLocaleString()}
-                        </div>
+                        {ticketMessages.length > 0 && (
+                          <div className="mt-3 space-y-3">
+                            {ticketMessages.map((message) => (
+                              <div
+                                key={message.id}
+                                className={`p-3 rounded-md ${
+                                  message.is_system_message
+                                    ? 'bg-gray-100 dark:bg-gray-700/50 text-center italic'
+                                    : message.created_by === user?.id
+                                    ? 'bg-blue-50 dark:bg-blue-900/20 ml-8'
+                                    : 'bg-gray-50 dark:bg-gray-700/50 mr-8'
+                                }`}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <RichTextDisplay
+                                  content={message.message}
+                                  className="text-sm dark:text-white"
+                                />
+                                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                  {new Date(message.created_at).toLocaleString()}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                      <span className={`px-2 py-1 text-xs rounded-full ${
-                        ticket.status === TicketStatus.CLOSED
-                          ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
-                          : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
-                      }`}>
-                        {ticket.status}
-                      </span>
-                    </div>
-                  </div>
-                ))}
+                    );
+                  })}
               </div>
             )}
           </div>
@@ -392,15 +422,10 @@ export const CustomerDashboard: React.FC = () => {
                         : 'bg-gray-50 dark:bg-gray-700 mr-8'
                     }`}
                   >
-                    <div className="text-sm dark:text-white">
-                      {message.is_system_message ? (
-                        <span className="text-gray-600 dark:text-gray-300">
-                          {message.message}
-                        </span>
-                      ) : (
-                        message.message
-                      )}
-                    </div>
+                    <RichTextDisplay
+                      content={message.message}
+                      className="text-sm dark:text-white"
+                    />
                     <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                       {new Date(message.created_at).toLocaleString()}
                     </div>
@@ -410,15 +435,28 @@ export const CustomerDashboard: React.FC = () => {
             )}
           </div>
           <div className="p-4 border-t dark:border-gray-700">
-            <input
-              type="text"
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              onKeyPress={handleSendMessage}
-              placeholder={activeTicket || selectedCategory ? "Type your message..." : "Please select a category first"}
-              disabled={!activeTicket && !selectedCategory}
-              className="w-full p-2 border dark:border-gray-700 rounded dark:bg-gray-700 dark:text-white dark:placeholder-gray-400 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:cursor-not-allowed"
-            />
+            <div className="space-y-2">
+              <input
+                type="text"
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') {
+                    handleSendMessage();
+                  }
+                }}
+                placeholder={activeTicket || selectedCategory ? "Type your message..." : "Please select a category first"}
+                disabled={!activeTicket && !selectedCategory}
+                className="w-full p-2 border dark:border-gray-700 rounded dark:bg-gray-700 dark:text-white dark:placeholder-gray-400 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:cursor-not-allowed"
+              />
+              <button
+                onClick={handleSendMessage}
+                disabled={!activeTicket && !selectedCategory || !newMessage.trim()}
+                className="w-full px-4 py-2 bg-blue-600 text-white rounded-md disabled:bg-gray-400 dark:disabled:bg-gray-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 transition-colors"
+              >
+                Send Message
+              </button>
+            </div>
           </div>
         </div>
       )}

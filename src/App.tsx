@@ -9,9 +9,13 @@ import { UpdatePassword } from './components/auth/UpdatePassword';
 import { InviteUser } from './components/auth/InviteUser';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { DashboardLayout } from './components/layout/DashboardLayout';
-import { EmployeeDashboard } from './components/features/EmployeeDashboard';
-import { CustomerDashboard } from './components/features/CustomerDashboard';
-import { ManagerDashboard } from './components/features/ManagerDashboard';
+import { CustomerView } from './components/features/CustomerView';
+import { TicketProcessing } from './components/features/TicketProcessing';
+import { TicketManagement } from './components/features/TicketManagement';
+import { KnowledgeBaseEmployee } from './components/features/KnowledgeBaseEmployee';
+import { KnowledgeBaseManager } from './components/features/KnowledgeBaseManager';
+import { EmployeeOverview } from './components/features/EmployeeOverview';
+import { AnalyticsDashboard } from './components/features/AnalyticsDashboard';
 import { useAuth } from './context/AuthContext';
 import './styles/App.css';
 import { supabase } from './lib/supabase';
@@ -182,8 +186,21 @@ function ManagerRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const { userRole } = useAuth();
+  const navigate = useNavigate();
+
+  React.useEffect(() => {
+    if (userRole !== 'admin') {
+      navigate('/dashboard/customer');
+    }
+  }, [userRole, navigate]);
+
+  return <>{children}</>;
+}
+
 function AppRoutes() {
-  const { user } = useAuth();
+  const { user, userRole } = useAuth();
 
   return (
     <Routes>
@@ -206,16 +223,66 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       >
-        <Route path="employee" element={<EmployeeDashboard />} />
-        <Route path="customer" element={<CustomerDashboard />} />
+        {/* Common routes */}
+        <Route path="customer" element={<CustomerView />} />
+
+        {/* Employee section */}
+        <Route path="employee" element={<Navigate to="/dashboard/ticket-processing" replace />} />
         <Route 
-          path="manager" 
+          path="ticket-processing" 
           element={
-            <ProtectedRoute requiredRole="manager">
-              <ManagerDashboard />
+            <ProtectedRoute requiredRole={['employee', 'agent', 'manager', 'admin', 'super_admin']}>
+              <TicketProcessing />
             </ProtectedRoute>
           } 
         />
+        <Route 
+          path="knowledge-base-employee" 
+          element={
+            <ProtectedRoute requiredRole={['employee', 'agent', 'manager', 'admin', 'super_admin']}>
+              <KnowledgeBaseEmployee />
+            </ProtectedRoute>
+          } 
+        />
+
+        {/* Manager section */}
+        <Route path="manager" element={<Navigate to="/dashboard/ticket-management" replace />} />
+        <Route 
+          path="ticket-management" 
+          element={
+            <ProtectedRoute requiredRole={['manager', 'admin', 'super_admin']}>
+              <TicketManagement />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="knowledge-base-manager" 
+          element={
+            <ProtectedRoute requiredRole={['manager', 'admin', 'super_admin']}>
+              <KnowledgeBaseManager />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="employee-overview" 
+          element={
+            <ProtectedRoute requiredRole={['manager', 'admin', 'super_admin']}>
+              <EmployeeOverview />
+            </ProtectedRoute>
+          } 
+        />
+
+        {/* Admin routes */}
+        <Route 
+          path="analytics" 
+          element={
+            <ProtectedRoute requiredRole={['manager', 'admin', 'super_admin']}>
+              <AnalyticsDashboard />
+            </ProtectedRoute>
+          } 
+        />
+
+        {/* Default route */}
         <Route index element={<Navigate to="customer" replace />} />
       </Route>
       

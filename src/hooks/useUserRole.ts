@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 
-type UserRole = 'super_admin' | 'admin' | 'manager' | 'agent' | 'customer';
+type UserRole = 'super_admin' | 'admin' | 'manager' | 'agent' | 'employee' | 'customer';
 
 interface UserData {
   role: UserRole;
@@ -37,12 +37,12 @@ export function useUserRole() {
 
         if (!employeeError && employeeData) {
           setUserData({
-            role: employeeData.permissions,
+            role: employeeData.permissions as UserRole,
             department: employeeData.department,
             full_name: user.user_metadata.full_name || '',
             avatar_url: null
           });
-          setRole(employeeData.permissions);
+          setRole(employeeData.permissions as UserRole);
           setError(null);
           return;
         }
@@ -87,6 +87,7 @@ export function useUserRole() {
     isAdmin: role === 'admin' || role === 'super_admin',
     isManager: role === 'manager',
     isAgent: role === 'agent',
+    isEmployee: role === 'employee',
     isCustomer: role === 'customer',
     department: userData?.department
   };
