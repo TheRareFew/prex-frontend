@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 
-type UserRole = 'admin' | 'agent' | 'user';
+type UserRole = 'super_admin' | 'admin' | 'manager' | 'agent' | 'customer';
 
 interface UserData {
   role: UserRole;
+  department?: string;
   full_name: string;
   avatar_url: string | null;
 }
@@ -27,17 +28,44 @@ export function useUserRole() {
       }
 
       try {
-        const { data, error } = await supabase
-          .from('users')
-          .select('role, full_name, avatar_url')
+        // First try to fetch from employees table
+        const { data: employeeData, error: employeeError } = await supabase
+          .from('employees')
+          .select('permissions, department')
           .eq('id', user.id)
           .single();
 
-        if (error) throw error;
+        if (!employeeError && employeeData) {
+          setUserData({
+            role: employeeData.permissions,
+            department: employeeData.department,
+            full_name: user.user_metadata.full_name || '',
+            avatar_url: null
+          });
+          setRole(employeeData.permissions);
+          setError(null);
+          return;
+        }
 
-        setUserData(data as UserData);
-        setRole(data.role as UserRole);
-        setError(null);
+        // If not found in employees, check customers table
+        const { data: customerData, error: customerError } = await supabase
+          .from('customers')
+          .select('id')
+          .eq('id', user.id)
+          .single();
+
+        if (!customerError && customerData) {
+          setUserData({
+            role: 'customer',
+            full_name: user.user_metadata.full_name || '',
+            avatar_url: null
+          });
+          setRole('customer');
+          setError(null);
+          return;
+        }
+
+        throw new Error('User not found in either employees or customers table');
       } catch (err) {
         console.error('Error fetching user role:', err);
         setError(err instanceof Error ? err.message : 'Failed to fetch user role');
@@ -56,8 +84,10 @@ export function useUserRole() {
     userData,
     loading,
     error,
-    isAdmin: role === 'admin',
+    isAdmin: role === 'admin' || role === 'super_admin',
+    isManager: role === 'manager',
     isAgent: role === 'agent',
-    isUser: role === 'user',
+    isCustomer: role === 'customer',
+    department: userData?.department
   };
 } 

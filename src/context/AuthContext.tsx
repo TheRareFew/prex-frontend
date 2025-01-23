@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { User, AuthError } from '@supabase/supabase-js';
+import { User, AuthError, Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 
 interface AuthContextType {
@@ -7,11 +7,13 @@ interface AuthContextType {
   loading: boolean;
   error: AuthError | null;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, fullName: string) => Promise<void>;
+  signUp: (email: string, password: string, fullName: string) => Promise<{ user: User | null; session: Session | null; }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   inviteUser: (email: string) => Promise<void>;
   isEmailVerified: boolean;
+  userRole: 'super_admin' | 'admin' | 'manager' | 'agent' | 'customer' | null;
+  isManager: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -21,12 +23,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<AuthError | null>(null);
   const [isEmailVerified, setIsEmailVerified] = useState(false);
+  const [userRole, setUserRole] = useState<AuthContextType['userRole']>(null);
+
+  // Fetch user role from database
+  const fetchUserRole = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('employees')
+        .select('permissions')
+        .eq('id', userId)
+        .single();
+
+      if (error) {
+        // If no employee record found, check customers table
+        const { data: customerData, error: customerError } = await supabase
+          .from('customers')
+          .select('id')
+          .eq('id', userId)
+          .single();
+
+        if (!customerError && customerData) {
+          setUserRole('customer');
+          return;
+        }
+        throw error;
+      }
+
+      setUserRole(data.permissions);
+    } catch (error) {
+      console.error('Error fetching user role:', error);
+      setUserRole(null);
+    }
+  };
 
   useEffect(() => {
     // Check active sessions and sets the user
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
       setIsEmailVerified(session?.user?.email_confirmed_at != null);
+      if (session?.user) {
+        fetchUserRole(session.user.id);
+      }
       setLoading(false);
     });
 
@@ -34,6 +71,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
       setIsEmailVerified(session?.user?.email_confirmed_at != null);
+      if (session?.user) {
+        fetchUserRole(session.user.id);
+      } else {
+        setUserRole(null);
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -61,11 +103,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           data: {
             full_name: fullName,
           },
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          emailRedirectTo: `${window.location.origin}/auth/callback?source=verification`,
         },
       });
+      
       if (error) throw error;
-      setIsEmailVerified(data.user?.email_confirmed_at != null);
+
+      // Check if confirmation email was sent
+      if (!data.user?.confirmation_sent_at) {
+        console.error('Confirmation email was not sent automatically');
+        // Try to send confirmation email manually
+        const { error: resendError } = await supabase.auth.resend({
+          type: 'signup',
+          email,
+          options: {
+            emailRedirectTo: `${window.location.origin}/auth/callback?source=verification`,
+          }
+        });
+        
+        if (resendError) {
+          console.error('Error sending confirmation email:', resendError);
+          throw resendError;
+        }
+      }
+
+      // Sign out immediately to ensure they verify their email
+      await supabase.auth.signOut();
+      setIsEmailVerified(false);
+      setUser(null);
+      
+      return data;
     } catch (error) {
       setError(error as AuthError);
       throw error;
@@ -119,6 +186,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     resetPassword,
     inviteUser,
     isEmailVerified,
+    userRole,
+    isManager: userRole === 'manager',
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, Link } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
 import { SignIn } from './components/auth/SignIn';
 import { SignUp } from './components/auth/SignUp';
 import { ResetPassword } from './components/auth/ResetPassword';
@@ -10,6 +11,7 @@ import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { DashboardLayout } from './components/layout/DashboardLayout';
 import { EmployeeDashboard } from './components/features/EmployeeDashboard';
 import { CustomerDashboard } from './components/features/CustomerDashboard';
+import { ManagerDashboard } from './components/features/ManagerDashboard';
 import { useAuth } from './context/AuthContext';
 import './styles/App.css';
 import { supabase } from './lib/supabase';
@@ -18,6 +20,7 @@ function AuthCallback() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [isProcessing, setIsProcessing] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
   React.useEffect(() => {
     const handleEmailConfirmation = async () => {
@@ -25,34 +28,106 @@ function AuthCallback() {
         const searchParams = new URLSearchParams(window.location.search);
         const token_hash = searchParams.get('token_hash');
         const type = searchParams.get('type');
+        const source = searchParams.get('source');
         
-        console.log('Auth callback params:', { type, hasTokenHash: !!token_hash });
+        console.log('Auth callback triggered with params:', { type, hasTokenHash: !!token_hash, source });
 
-        if (token_hash && type) {
+        // If we have an active session and this isn't a verification callback, go to dashboard
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          // If this is a verification callback and we have a session, create the employee record
+          if (source === 'verification') {
+            console.log('Creating employee record for verified user:', session.user.id);
+            const { data: employeeData, error: employeeError } = await supabase
+              .from('employees')
+              .insert([
+                {
+                  id: session.user.id,
+                  permissions: 'manager',
+                  department: 'other',
+                  shift: 'morning'
+                },
+              ])
+              .select()
+              .single();
+
+            if (employeeError) {
+              console.error('Error creating employee record:', employeeError);
+              setError('Failed to create employee record. Please contact support.');
+              setIsProcessing(false);
+              return;
+            }
+
+            console.log('Employee record created successfully:', employeeData);
+            
+            // Reload the session to ensure we have the latest data
+            await supabase.auth.refreshSession();
+          }
+          
+          navigate('/dashboard', { replace: true });
+          return;
+        }
+
+        // Handle email verification
+        if (token_hash && type === 'signup') {
+          console.log('Attempting to verify signup...');
           const { data, error } = await supabase.auth.verifyOtp({
             token_hash,
             type: type as any
           });
 
-          console.log('Verify result:', { success: !error, user: data?.user });
+          console.log('Signup verification result:', { success: !error, user: data?.user });
 
           if (!error && data?.user) {
+            console.log('Signup verification successful, creating employee record...');
+            // Create employee record after successful verification
+            const { data: employeeData, error: employeeError } = await supabase
+              .from('employees')
+              .insert([
+                {
+                  id: data.user.id,
+                  permissions: 'manager',
+                  department: 'other',
+                  shift: 'morning'
+                },
+              ])
+              .select()
+              .single();
+
+            if (employeeError) {
+              console.error('Error creating employee record:', employeeError);
+              setError('Failed to create employee record. Please contact support.');
+              setIsProcessing(false);
+              return;
+            }
+
+            console.log('Employee record created successfully:', employeeData);
+            
+            // Reload the session to ensure we have the latest data
+            await supabase.auth.refreshSession();
+            
             navigate('/dashboard', { replace: true });
+            return;
+          }
+
+          if (error) {
+            console.error('Error verifying signup:', error);
+            setError('Failed to verify email. Please try again.');
+            setIsProcessing(false);
             return;
           }
         }
 
-        // If no token_hash, check if we have an active session
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-          navigate('/dashboard', { replace: true });
-          return;
+        // If we get here and it was a verification attempt, show error
+        if (source === 'verification') {
+          setError('Verification failed. Please check your email and try the link again.');
+        } else {
+          setError('No verification token found. Please check your email for the verification link.');
         }
-
-        // If we get here, either there were no tokens or verification failed
         setIsProcessing(false);
       } catch (error) {
         console.error('Error in email confirmation:', error);
+        setError('An error occurred during verification. Please try again.');
         setIsProcessing(false);
       }
     };
@@ -70,13 +145,41 @@ function AuthCallback() {
   return (
     <div className="flex min-h-full flex-col justify-center px-6 py-12 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-sm text-center">
-        <h2 className="text-2xl font-bold text-gray-900 mb-4">Verifying your email...</h2>
-        <div className="mt-4">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
-        </div>
+        {isProcessing ? (
+          <>
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">Verifying your email...</h2>
+            <div className="mt-4">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
+            </div>
+          </>
+        ) : error ? (
+          <>
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">Verification Error</h2>
+            <p className="text-red-600 mb-4">{error}</p>
+            <Link
+              to="/signin"
+              className="text-indigo-600 hover:text-indigo-500"
+            >
+              Return to Sign In
+            </Link>
+          </>
+        ) : null}
       </div>
     </div>
   );
+}
+
+function ManagerRoute({ children }: { children: React.ReactNode }) {
+  const { isManager } = useAuth();
+  const navigate = useNavigate();
+
+  React.useEffect(() => {
+    if (!isManager) {
+      navigate('/dashboard/customer');
+    }
+  }, [isManager, navigate]);
+
+  return <>{children}</>;
 }
 
 function AppRoutes() {
@@ -105,6 +208,14 @@ function AppRoutes() {
       >
         <Route path="employee" element={<EmployeeDashboard />} />
         <Route path="customer" element={<CustomerDashboard />} />
+        <Route 
+          path="manager" 
+          element={
+            <ProtectedRoute requiredRole="manager">
+              <ManagerDashboard />
+            </ProtectedRoute>
+          } 
+        />
         <Route index element={<Navigate to="customer" replace />} />
       </Route>
       
@@ -119,11 +230,13 @@ function AppRoutes() {
 
 function App() {
   return (
-    <AuthProvider>
-      <Router>
-        <AppRoutes />
-      </Router>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <Router>
+          <AppRoutes />
+        </Router>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 

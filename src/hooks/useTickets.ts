@@ -1,14 +1,18 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
+import { TicketStatus, TicketPriority, TicketCategory } from '../types/enums';
 
 export interface Ticket {
   id: string;
-  status: string;
-  category: string;
+  status: TicketStatus;
+  category: TicketCategory;
+  priority: TicketPriority;
   created_at: string;
+  updated_at: string;
   created_by: string;
   assigned_to: string | null;
+  name: string;
 }
 
 export const useTickets = () => {
@@ -25,7 +29,7 @@ export const useTickets = () => {
       const { data, error: supabaseError } = await supabase
         .from('tickets')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('updated_at', { ascending: false });
 
       if (supabaseError) throw supabaseError;
 
@@ -42,7 +46,7 @@ export const useTickets = () => {
     }
   };
 
-  const createTicket = async (category: string) => {
+  const createTicket = async (category: TicketCategory) => {
     try {
       setLoading(true);
       setError(null);
@@ -53,7 +57,7 @@ export const useTickets = () => {
         .from('tickets')
         .insert([
           {
-            status: 'new',
+            status: TicketStatus.FRESH,
             category,
             created_by: user?.id,
           },
@@ -77,16 +81,21 @@ export const useTickets = () => {
     }
   };
 
-  const updateTicketStatus = async (ticketId: string, status: string) => {
+  const updateTicketStatus = async (ticketId: string, status: TicketStatus) => {
     try {
       setLoading(true);
       setError(null);
 
       console.log('Updating ticket status:', ticketId, status);
 
+      const updateData = {
+        status,
+        ...(status === TicketStatus.CLOSED ? { resolved: true } : {})
+      };
+
       const { data, error: supabaseError } = await supabase
         .from('tickets')
-        .update({ status })
+        .update(updateData)
         .eq('id', ticketId)
         .select()
         .single();
@@ -97,13 +106,81 @@ export const useTickets = () => {
       // Update local state immediately for better UX
       setTickets(current =>
         current.map(ticket =>
-          ticket.id === ticketId ? { ...ticket, status } : ticket
+          ticket.id === ticketId ? { ...ticket, ...updateData } : ticket
         )
       );
       return data;
     } catch (err) {
       const error = err as Error;
       console.error('Error updating ticket status:', error);
+      setError(error.message);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateTicketPriority = async (ticketId: string, priority: TicketPriority) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      console.log('Updating ticket priority:', ticketId, priority);
+
+      const { data, error: supabaseError } = await supabase
+        .from('tickets')
+        .update({ priority })
+        .eq('id', ticketId)
+        .select()
+        .single();
+
+      if (supabaseError) throw supabaseError;
+
+      console.log('Updated ticket priority:', data);
+      // Update local state immediately for better UX
+      setTickets(current =>
+        current.map(ticket =>
+          ticket.id === ticketId ? { ...ticket, priority } : ticket
+        )
+      );
+      return data;
+    } catch (err) {
+      const error = err as Error;
+      console.error('Error updating ticket priority:', error);
+      setError(error.message);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateTicketCategory = async (ticketId: string, category: TicketCategory) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      console.log('Updating ticket category:', ticketId, category);
+
+      const { data, error: supabaseError } = await supabase
+        .from('tickets')
+        .update({ category })
+        .eq('id', ticketId)
+        .select()
+        .single();
+
+      if (supabaseError) throw supabaseError;
+
+      console.log('Updated ticket category:', data);
+      // Update local state immediately for better UX
+      setTickets(current =>
+        current.map(ticket =>
+          ticket.id === ticketId ? { ...ticket, category } : ticket
+        )
+      );
+      return data;
+    } catch (err) {
+      const error = err as Error;
+      console.error('Error updating ticket category:', error);
       setError(error.message);
       return null;
     } finally {
@@ -182,6 +259,65 @@ export const useTickets = () => {
     }
   };
 
+  const updateTicketTimestamp = async (ticketId: string) => {
+    try {
+      const { data, error: supabaseError } = await supabase
+        .from('tickets')
+        .update({ updated_at: new Date().toISOString() })
+        .eq('id', ticketId)
+        .select()
+        .single();
+
+      if (supabaseError) throw supabaseError;
+
+      // Update local state
+      setTickets(current =>
+        current.map(ticket =>
+          ticket.id === ticketId ? { ...ticket, updated_at: data.updated_at } : ticket
+        )
+      );
+
+      return data;
+    } catch (err) {
+      console.error('Error updating ticket timestamp:', err);
+      return null;
+    }
+  };
+
+  const updateTicketTitle = async (ticketId: string, name: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      console.log('Updating ticket name:', ticketId, name);
+
+      const { data, error: supabaseError } = await supabase
+        .from('tickets')
+        .update({ name })
+        .eq('id', ticketId)
+        .select()
+        .single();
+
+      if (supabaseError) throw supabaseError;
+
+      console.log('Updated ticket name:', data);
+      // Update local state immediately for better UX
+      setTickets(current =>
+        current.map(ticket =>
+          ticket.id === ticketId ? { ...ticket, name } : ticket
+        )
+      );
+      return data;
+    } catch (err) {
+      const error = err as Error;
+      console.error('Error updating ticket name:', error);
+      setError(error.message);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Set up real-time subscription
   useEffect(() => {
     console.log('Setting up ticket subscription');
@@ -236,7 +372,11 @@ export const useTickets = () => {
     fetchTickets,
     createTicket,
     updateTicketStatus,
+    updateTicketPriority,
+    updateTicketCategory,
     assignTicket,
     deleteTicket,
+    updateTicketTimestamp,
+    updateTicketTitle,
   };
 }; 

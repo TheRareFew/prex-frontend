@@ -4,12 +4,12 @@ import { useUserRole } from '../../hooks/useUserRole';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  requiredRole?: 'admin' | 'agent' | 'user';
+  requiredRole?: 'super_admin' | 'admin' | 'manager' | 'agent' | 'customer';
 }
 
 export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
   const { user } = useAuth();
-  const { role, loading } = useUserRole();
+  const { role, loading, isManager } = useUserRole();
 
   if (loading) {
     return (
@@ -21,6 +21,11 @@ export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) 
 
   if (!user) {
     return <Navigate to="/signin" replace />;
+  }
+
+  // Managers have access to all routes
+  if (isManager) {
+    return <>{children}</>;
   }
 
   // If a role is required, check if the user has it

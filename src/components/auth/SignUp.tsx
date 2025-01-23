@@ -28,10 +28,18 @@ export function SignUp() {
 
     try {
       setLoading(true);
-      await signUp(email, password, fullName);
-      setVerificationEmailSent(true);
+      const { user } = await signUp(email, password, fullName);
+      
+      if (user) {
+        console.log('Signup successful, confirmation status:', user.confirmation_sent_at);
+        setVerificationEmailSent(true);
+      } else {
+        console.error('No user returned from signup');
+        setValidationError('Failed to create account');
+      }
     } catch (error) {
       console.error('Error signing up:', error);
+      setValidationError(error instanceof Error ? error.message : 'Failed to create account');
     } finally {
       setLoading(false);
     }

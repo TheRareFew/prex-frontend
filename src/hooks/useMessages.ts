@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
+import { useTickets } from './useTickets';
 
 export interface Message {
   id: string;
@@ -8,6 +9,7 @@ export interface Message {
   message: string;
   created_at: string;
   created_by: string;
+  is_system_message?: boolean;
 }
 
 export const useMessages = (ticketId: string | null) => {
@@ -15,6 +17,7 @@ export const useMessages = (ticketId: string | null) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
+  const { updateTicketTimestamp } = useTickets();
 
   // Fetch messages for a ticket
   const fetchMessages = async () => {
@@ -44,7 +47,7 @@ export const useMessages = (ticketId: string | null) => {
   };
 
   // Send a new message
-  const sendMessage = async (message: string) => {
+  const sendMessage = async (message: string, isSystemMessage: boolean = false) => {
     if (!ticketId || !message.trim()) return null;
 
     try {
@@ -58,12 +61,16 @@ export const useMessages = (ticketId: string | null) => {
             ticket_id: ticketId,
             message: message.trim(),
             created_by: user?.id,
+            is_system_message: isSystemMessage,
           },
         ])
         .select()
         .single();
 
       if (supabaseError) throw supabaseError;
+
+      // Update ticket timestamp
+      await updateTicketTimestamp(ticketId);
 
       console.log('Sent message:', data);
       // Update local state immediately for better UX
@@ -75,6 +82,11 @@ export const useMessages = (ticketId: string | null) => {
       setError(error.message);
       return null;
     }
+  };
+
+  // Send a system message
+  const sendSystemMessage = async (message: string) => {
+    return sendMessage(message, true);
   };
 
   // Set up real-time subscription
@@ -125,5 +137,6 @@ export const useMessages = (ticketId: string | null) => {
     loading,
     error,
     sendMessage,
+    sendSystemMessage,
   };
 }; 
