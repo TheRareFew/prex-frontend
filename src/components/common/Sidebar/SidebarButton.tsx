@@ -17,10 +17,11 @@ export const SidebarButton: React.FC<SidebarButtonProps> = ({
       disabled={disabled}
       title={tooltip}
       className={`
-        group relative flex items-center justify-center w-full p-3 
+        group relative flex items-center w-full p-3 
         transition-colors duration-200
+        ${isCollapsed ? 'justify-center' : 'justify-start'}
         ${isActive 
-          ? 'bg-blue-500 text-white dark:bg-blue-600' 
+          ? 'bg-blue-500 text-white dark:bg-purple-500 dark:text-white' 
           : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
         }
         ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}

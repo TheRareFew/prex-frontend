@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { useTickets } from './useTickets';
+import { message_sender_type } from '../types/database';
 
 export interface Message {
   id: string;
@@ -10,6 +11,7 @@ export interface Message {
   created_at: string;
   created_by: string;
   is_system_message?: boolean;
+  sender_type: message_sender_type;
 }
 
 export const useMessages = (ticketId: string | null) => {
@@ -53,6 +55,19 @@ export const useMessages = (ticketId: string | null) => {
     try {
       setError(null);
 
+      // First check if the user is an employee
+      const { data: employeeData, error: employeeError } = await supabase
+        .from('employees')
+        .select('id')
+        .eq('id', user?.id)
+        .single();
+
+      if (employeeError && employeeError.code !== 'PGRST116') { // PGRST116 is "not found" error
+        throw employeeError;
+      }
+
+      const senderType: message_sender_type = employeeData ? 'employee' : 'customer';
+
       console.log('Sending message:', message, 'for ticket:', ticketId);
       const { data, error: supabaseError } = await supabase
         .from('messages')
@@ -62,6 +77,7 @@ export const useMessages = (ticketId: string | null) => {
             message: message.trim(),
             created_by: user?.id,
             is_system_message: isSystemMessage,
+            sender_type: senderType
           },
         ])
         .select()

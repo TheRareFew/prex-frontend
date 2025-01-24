@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTickets } from '../../hooks/useTickets';
 import { useMessages } from '../../hooks/useMessages';
+import { useArticles } from '../../hooks/useArticles';
 import { useAuth } from '../../context/AuthContext';
 import { TicketCategory, TicketStatus } from '../../types/enums';
 import { RichTextEditor } from '../common/RichTextEditor/RichTextEditor';
 import { RichTextDisplay } from '../common/RichTextDisplay/RichTextDisplay';
+import { Article } from '../../types';
 
 interface CategoryOption {
   category: TicketCategory;
@@ -59,6 +61,7 @@ export const CustomerView: React.FC = () => {
   const [activeTicket, setActiveTicket] = useState<string | null>(null);
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
   const { user } = useAuth();
 
   const {
@@ -75,21 +78,35 @@ export const CustomerView: React.FC = () => {
     sendMessage,
   } = useMessages(activeTicket);
 
-  const messageContainerRef = useRef<HTMLDivElement>(null);
+  // Initialize articles hook with default filters
+  const {
+    articles: allArticles,
+    loading: articlesLoading,
+    error: articlesError,
+    updateFilters,
+    fetchArticleById
+  } = useArticles({
+    initialFilters: {
+      status: ['approved']
+    }
+  });
+
+  // Filter articles based on search query
+  useEffect(() => {
+    updateFilters({ search: searchQuery });
+  }, [searchQuery, updateFilters]);
+
+  // Separate FAQs and regular articles
+  const faqs = allArticles.filter(article => article.is_faq);
+  const topArticles = allArticles
+    .filter(article => !article.is_faq)
+    .sort((a, b) => b.view_count - a.view_count)
+    .slice(0, 5);
 
   // Filter tickets to only show the current user's tickets
   const userTickets = tickets.filter(ticket => ticket.created_by === user?.id);
 
-  // Dummy data for now - will be replaced with Supabase queries later
-  const faqs = [
-    { id: 1, question: 'How do I reset my password?', answer: 'You can reset your password through the login page.' },
-    { id: 2, question: 'How do I contact support?', answer: 'Click the chat button in the bottom right corner.' },
-  ];
-
-  const topArticles = [
-    { id: 1, title: 'Getting Started Guide', views: 1200 },
-    { id: 2, title: 'Common Issues & Solutions', views: 800 },
-  ];
+  const messageContainerRef = useRef<HTMLDivElement>(null);
 
   const handleStartChat = () => {
     // Check for existing tickets and get the most recently updated one
@@ -178,14 +195,72 @@ export const CustomerView: React.FC = () => {
     }
   }, [messages]);
 
-  if (ticketError || messagesError) {
+  const handleArticleClick = async (articleId: string) => {
+    try {
+      const article = await fetchArticleById(articleId);
+      setSelectedArticle(article);
+      // Clear search when viewing an article
+      setSearchQuery('');
+    } catch (error) {
+      console.error('Error fetching article:', error);
+    }
+  };
+
+  if (ticketError || messagesError || articlesError) {
     return (
       <div className="text-red-600 p-4">
-        Error: {ticketError || messagesError}
+        Error: {ticketError || messagesError || articlesError?.message}
       </div>
     );
   }
 
+  // Article detail view
+  if (selectedArticle) {
+    return (
+      <div className="max-w-4xl mx-auto space-y-6 p-4">
+        <div className="flex items-center gap-4 mb-6">
+          <button
+            onClick={() => setSelectedArticle(null)}
+            className="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors"
+          >
+            <span className="text-xl">←</span>
+            <span>Back to Articles</span>
+          </button>
+        </div>
+        
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+          <div className="mb-6">
+            <h1 className="text-3xl font-semibold dark:text-white mb-4">
+              {selectedArticle.title}
+            </h1>
+            {selectedArticle.description && (
+              <p className="text-lg text-gray-600 dark:text-gray-300 mb-4">
+                {selectedArticle.description}
+              </p>
+            )}
+            <div className="flex flex-wrap gap-2 mb-6">
+              {selectedArticle.tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded-full text-sm"
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">
+              {selectedArticle.view_count} views • Last updated {new Date(selectedArticle.updated_at).toLocaleDateString()}
+            </div>
+          </div>
+          <div className="prose dark:prose-invert max-w-none dark:text-white prose-headings:dark:text-white prose-strong:dark:text-white prose-code:dark:text-white">
+            <RichTextDisplay content={selectedArticle.content} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Articles list view
   return (
     <div className="space-y-6">
       {/* Search Bar */}
@@ -203,27 +278,78 @@ export const CustomerView: React.FC = () => {
         {/* FAQs Section */}
         <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
           <h2 className="text-xl font-semibold mb-4 dark:text-white">FAQs</h2>
-          <div className="space-y-4">
-            {faqs.map((faq) => (
-              <div key={faq.id} className="border-b dark:border-gray-700 pb-4">
-                <h3 className="font-medium mb-2 dark:text-white">{faq.question}</h3>
-                <p className="text-gray-600 dark:text-gray-300">{faq.answer}</p>
-              </div>
-            ))}
-          </div>
+          {articlesLoading ? (
+            <div className="animate-pulse space-y-4">
+              {[1, 2, 3].map((n) => (
+                <div key={n} className="h-20 bg-gray-200 dark:bg-gray-700 rounded" />
+              ))}
+            </div>
+          ) : faqs.length === 0 ? (
+            <p className="text-gray-500 dark:text-gray-400">No FAQs available</p>
+          ) : (
+            <div className="space-y-4">
+              {faqs.map((faq) => (
+                <button
+                  key={faq.id}
+                  onClick={() => handleArticleClick(faq.id)}
+                  className="w-full text-left border-b dark:border-gray-700 pb-4 hover:bg-gray-50 dark:hover:bg-gray-700 p-2 rounded transition-colors"
+                >
+                  <h3 className="font-medium mb-2 dark:text-white">{faq.title}</h3>
+                  {faq.description && (
+                    <p className="text-gray-600 dark:text-gray-300 text-sm">
+                      {faq.description}
+                    </p>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Top Articles Section */}
         <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
           <h2 className="text-xl font-semibold mb-4 dark:text-white">Top Articles</h2>
-          <div className="space-y-4">
-            {topArticles.map((article) => (
-              <div key={article.id} className="border-b dark:border-gray-700 pb-4">
-                <h3 className="font-medium dark:text-white">{article.title}</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">{article.views} views</p>
-              </div>
-            ))}
-          </div>
+          {articlesLoading ? (
+            <div className="animate-pulse space-y-4">
+              {[1, 2, 3].map((n) => (
+                <div key={n} className="h-20 bg-gray-200 dark:bg-gray-700 rounded" />
+              ))}
+            </div>
+          ) : topArticles.length === 0 ? (
+            <p className="text-gray-500 dark:text-gray-400">No articles available</p>
+          ) : (
+            <div className="space-y-4">
+              {topArticles.map((article) => (
+                <button
+                  key={article.id}
+                  onClick={() => handleArticleClick(article.id)}
+                  className="w-full text-left border-b dark:border-gray-700 pb-4 hover:bg-gray-50 dark:hover:bg-gray-700 p-2 rounded transition-colors"
+                >
+                  <h3 className="font-medium dark:text-white">{article.title}</h3>
+                  {article.description && (
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      {article.description}
+                    </p>
+                  )}
+                  <div className="flex justify-between items-center mt-2">
+                    <div className="flex gap-2">
+                      {article.tags.slice(0, 3).map((tag) => (
+                        <span
+                          key={tag}
+                          className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded-full text-xs"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                      {article.view_count} views
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
