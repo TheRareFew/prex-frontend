@@ -49,25 +49,38 @@ export const useMessages = (ticketId: string | null) => {
   };
 
   // Send a new message
-  const sendMessage = async (message: string, isSystemMessage: boolean = false) => {
+  const sendMessage = async (message: string, isSystemMessage: boolean = false, forceSenderType?: message_sender_type) => {
     if (!ticketId || !message.trim()) return null;
 
     try {
       setError(null);
 
-      // First check if the user is an employee
-      const { data: employeeData, error: employeeError } = await supabase
-        .from('employees')
-        .select('id')
-        .eq('id', user?.id)
-        .single();
+      // First check if the user is an employee (unless sender type is forced)
+      let senderType = forceSenderType;
+      if (!senderType) {
+        const { data: employeeData, error: employeeError } = await supabase
+          .from('employees')
+          .select('id')
+          .eq('id', user?.id)
+          .single();
 
-      if (employeeError && employeeError.code !== 'PGRST116') { // PGRST116 is "not found" error
-        throw employeeError;
+        if (employeeError && employeeError.code !== 'PGRST116') { // PGRST116 is "not found" error
+          throw employeeError;
+        }
+
+        senderType = employeeData ? 'employee' : 'customer';
       }
 
-      const senderType: message_sender_type = employeeData ? 'employee' : 'customer';
+      // Check if ticket is assigned to a bot
+      const { data: ticketData, error: ticketError } = await supabase
+        .from('tickets')
+        .select('assigned_to')
+        .eq('id', ticketId)
+        .single();
 
+      if (ticketError) throw ticketError;
+
+      // Just save message normally - trigger will handle bot stuff
       console.log('Sending message:', message, 'for ticket:', ticketId);
       const { data, error: supabaseError } = await supabase
         .from('messages')

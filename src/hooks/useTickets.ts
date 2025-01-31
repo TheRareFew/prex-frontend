@@ -53,6 +53,9 @@ export const useTickets = () => {
 
       console.log('Creating ticket with category:', category, 'user:', user?.id);
 
+      // Default bot ID - same as in edge function
+      const defaultBotId = "123e4567-e89b-42d3-a456-556642440001";
+
       const { data, error: supabaseError } = await supabase
         .from('tickets')
         .insert([
@@ -60,6 +63,7 @@ export const useTickets = () => {
             status: TicketStatus.FRESH,
             category,
             created_by: user?.id,
+            assigned_to: defaultBotId  // Assign to default bot
           },
         ])
         .select()

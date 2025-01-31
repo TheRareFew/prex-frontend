@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Article } from '../components/features/ArticleList/types';
+import { useAuth } from '../context/AuthContext';
 
 interface UseArticleReviewReturn {
   approveArticle: (articleId: string, feedback?: string) => Promise<void>;
@@ -13,9 +14,11 @@ interface UseArticleReviewReturn {
 export function useArticleReview(): UseArticleReviewReturn {
   const [error, setError] = useState<Error | null>(null);
   const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
 
   const approveArticle = async (articleId: string, feedback?: string) => {
     try {
+      if (!user) throw new Error('User must be logged in to approve articles');
       setLoading(true);
       setError(null);
 
@@ -41,6 +44,7 @@ export function useArticleReview(): UseArticleReviewReturn {
         .from('approval_requests')
         .update({
           status: 'approved',
+          reviewed_by: user.id,
           reviewed_at: new Date().toISOString(),
           feedback: feedback || null,
         })
@@ -56,6 +60,7 @@ export function useArticleReview(): UseArticleReviewReturn {
           .insert({
             article_id: articleId,
             content: feedback,
+            created_by: user.id,
           });
 
         if (noteError) throw noteError;
@@ -70,6 +75,7 @@ export function useArticleReview(): UseArticleReviewReturn {
 
   const rejectArticle = async (articleId: string, feedback: string) => {
     try {
+      if (!user) throw new Error('User must be logged in to reject articles');
       setLoading(true);
       setError(null);
 
@@ -86,6 +92,7 @@ export function useArticleReview(): UseArticleReviewReturn {
         .from('approval_requests')
         .update({
           status: 'rejected',
+          reviewed_by: user.id,
           reviewed_at: new Date().toISOString(),
           feedback,
         })
@@ -100,6 +107,7 @@ export function useArticleReview(): UseArticleReviewReturn {
         .insert({
           article_id: articleId,
           content: feedback,
+          created_by: user.id,
         });
 
       if (noteError) throw noteError;
@@ -113,6 +121,7 @@ export function useArticleReview(): UseArticleReviewReturn {
 
   const addArticleNote = async (articleId: string, note: string) => {
     try {
+      if (!user) throw new Error('User must be logged in to add article notes');
       setLoading(true);
       setError(null);
 
@@ -121,6 +130,7 @@ export function useArticleReview(): UseArticleReviewReturn {
         .insert({
           article_id: articleId,
           content: note,
+          created_by: user.id,
         });
 
       if (noteError) throw noteError;

@@ -11,7 +11,8 @@ import {
   UsersIcon, 
   ChartBarIcon,
   ChevronLeftIcon,
-  ChevronRightIcon 
+  ChevronRightIcon,
+  ChatBubbleLeftRightIcon 
 } from '@heroicons/react/24/outline';
 
 const navigationItems: NavigationItem[] = [
@@ -75,6 +76,14 @@ const navigationItems: NavigationItem[] = [
     roles: ['super_admin', 'admin', 'manager'],
     section: 'manager',
     tooltip: 'View system analytics'
+  },
+  {
+    path: '/dashboard/agent-chat',
+    label: 'Agent Chat',
+    icon: <ChatBubbleLeftRightIcon className="w-6 h-6" />,
+    roles: ['super_admin', 'admin', 'manager'],
+    section: 'manager',
+    tooltip: 'Monitor agent conversations'
   }
 ];
 
@@ -94,7 +103,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         currentPath.includes('/dashboard/ticket-management') ||
         currentPath.includes('/dashboard/knowledge-base-manager') ||
         currentPath.includes('/dashboard/employee-overview') ||
-        currentPath.includes('/dashboard/analytics')) {
+        currentPath.includes('/dashboard/analytics') ||
+        currentPath.includes('/dashboard/agent-chat')) {
       return 'manager';
     }
     if (currentPath.includes('/dashboard/employee') ||

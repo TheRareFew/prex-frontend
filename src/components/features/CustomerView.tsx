@@ -135,7 +135,7 @@ export const CustomerView: React.FC = () => {
       if (pendingMessage && activeTicket) {
         try {
           console.log('Sending pending message:', pendingMessage);
-          const sent = await sendMessage(pendingMessage);
+          const sent = await sendMessage(pendingMessage, false, 'customer');
           if (sent) {
             setNewMessage('');
             setPendingMessage(null);
@@ -160,7 +160,7 @@ export const CustomerView: React.FC = () => {
     try {
       // If we already have an active ticket, send message directly
       if (activeTicket) {
-        const sent = await sendMessage(messageText);
+        const sent = await sendMessage(messageText, false, 'customer');
         if (sent) {
           setNewMessage('');
         }

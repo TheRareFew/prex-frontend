@@ -16,6 +16,7 @@ import { KnowledgeBaseEmployee } from './components/features/KnowledgeBaseEmploy
 import { KnowledgeBaseManager } from './components/features/KnowledgeBaseManager';
 import { EmployeeOverview } from './components/features/EmployeeOverview';
 import { AnalyticsDashboard } from './components/features/AnalyticsDashboard';
+import { AgentChat } from './components/features/AgentChat';
 import { useAuth } from './context/AuthContext';
 import './styles/App.css';
 import { supabase } from './lib/supabase';
@@ -271,26 +272,29 @@ function AppRoutes() {
             </ProtectedRoute>
           } 
         />
-
-        {/* Admin routes */}
         <Route 
           path="analytics" 
           element={
-            <ProtectedRoute requiredRole={['manager', 'admin', 'super_admin']}>
+            <ProtectedRoute requiredRole={['admin', 'super_admin']}>
               <AnalyticsDashboard />
             </ProtectedRoute>
           } 
         />
+        <Route 
+          path="agent-chat" 
+          element={
+            <ProtectedRoute requiredRole={['manager', 'admin', 'super_admin']}>
+              <AgentChat />
+            </ProtectedRoute>
+          } 
+        />
 
-        {/* Default route */}
-        <Route index element={<Navigate to="customer" replace />} />
+        {/* Default redirect */}
+        <Route path="" element={<Navigate to="/dashboard/customer" replace />} />
       </Route>
-      
-      {/* Redirect root to dashboard */}
-      <Route
-        path="/"
-        element={<Navigate to="/dashboard" replace />}
-      />
+
+      {/* Catch-all redirect */}
+      <Route path="*" element={<Navigate to="/dashboard/customer" replace />} />
     </Routes>
   );
 }
